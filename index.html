@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPVB Visibility Management System | Master Plan Tracker</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    ::-webkit-scrollbar { height: 8px; width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    
+    .task-row.dragging {
+      opacity: 0.45;
+      background-color: #eff6ff !important;
+    }
+    .task-row.drag-over-top {
+      border-top: 3px solid #2563eb !important;
+    }
+    .task-row.drag-over-bottom {
+      border-bottom: 3px solid #2563eb !important;
+    }
+    .drag-handle {
+      cursor: grab;
+      user-select: none;
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+
+    /* Strikethrough style for completed tasks */
+    .task-done-strike {
+      text-decoration: line-through;
+      color: #94a3b8 !important;
+    }
+    .task-done-strike input {
+      text-decoration: line-through;
+      color: #94a3b8 !important;
+    }
+
+    /* Custom Header Filter Popover */
+    .filter-btn {
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    .filter-btn:hover, .filter-btn.active {
+      opacity: 1;
+      color: #38bdf8;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col relative pb-16">
+
+  <!-- Header Banner: Compact Height (~60% of original) -->
+  <header class="bg-[#004B93] text-white shadow-sm border-b border-blue-900 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-2 sm:px-6 lg:px-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-7 h-7 rounded-md bg-white/10 flex items-center justify-center font-bold text-xs tracking-wider border border-white/20">
+          SPVB
+        </div>
+        <div>
+          <h1 class="text-sm font-bold tracking-tight leading-tight">Visibility Management System (VMS)</h1>
+          <p class="text-[10px] text-blue-200">Master Plan Tracker · PFS, PM & Signage (11/2026 – 12/2027)</p>
+        </div>
+      </div>
+      
+      <!-- Quick Status Badges (Compact) -->
+      <div class="flex items-center flex-wrap gap-1.5 text-[10px]">
+        <div class="bg-blue-800/80 px-2.5 py-0.5 rounded-full border border-blue-400/30 flex items-center space-x-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Testing & UAT: <strong class="text-amber-300">01/04 – 29/04/2027</strong></span>
+        </div>
+        <div class="bg-blue-800/80 px-2.5 py-0.5 rounded-full border border-blue-400/30">
+          Rollout: <strong class="text-white">14/05/2027</strong>
+        </div>
+        <div id="save-status" class="text-emerald-300 font-medium px-2 py-0.5 bg-emerald-950/40 rounded border border-emerald-500/30 text-[10px] flex items-center gap-1">
+          ✓ Auto-saved
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex-1 w-full flex flex-col gap-3">
+
+    <!-- Ultra-slim Single-Line Progress & Status Bar -->
+    <section class="bg-white px-4 py-2 rounded-xl shadow-xs border border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-xs">
+      <!-- Progress Bar (Left) -->
+      <div class="flex items-center gap-3 flex-1 max-w-lg">
+        <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Progress:</span>
+        <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden flex-1">
+          <div id="kpi-progress-bar" class="bg-[#004B93] h-2 rounded-full transition-all duration-500" style="width: 2%"></div>
+        </div>
+        <div class="flex items-center gap-1 font-bold text-slate-900 whitespace-nowrap">
+          <span id="kpi-progress-val" class="text-sm text-[#004B93]">2%</span>
+          <span id="kpi-progress-badge" class="hidden">2%</span>
+        </div>
+      </div>
+
+      <!-- Status Counts (Right) -->
+      <div class="flex items-center gap-2 text-[11px]">
+        <div class="bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="text-emerald-800 font-medium">Done: <strong id="count-done" class="font-bold">1</strong></span>
+        </div>
+        <div class="bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+          <span class="text-blue-800 font-medium">In Progress: <strong id="count-prog" class="font-bold">3</strong></span>
+        </div>
+        <div class="bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+          <span class="text-slate-700 font-medium">Not Started: <strong id="count-pending" class="font-bold">16</strong></span>
+        </div>
+        <span class="text-slate-400 font-medium pl-1" id="kpi-total-tasks">(20 tasks)</span>
+      </div>
+    </section>
+
+    <!-- Controls Bar: Clean Single-Row Toolbar (No tips, No duplicated filters) -->
+    <section class="bg-white px-4 py-2.5 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <!-- Left: View Switcher Tabs -->
+      <div class="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 w-fit">
+        <button id="tab-table" class="px-4 py-1.5 rounded-md text-xs font-semibold bg-white text-[#004B93] shadow-sm transition-all flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+          WBS Table View
+        </button>
+        <button id="tab-gantt" class="px-4 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          Gantt Timeline
+        </button>
+      </div>
+
+      <!-- Right: Search, Add Task, Tools in ONE clean line -->
+      <div class="flex items-center gap-2">
+        <!-- Search Input -->
+        <div class="relative">
+          <input type="text" id="search-input" placeholder="Search tasks..." class="text-xs bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 w-48 focus:outline-none focus:ring-1 focus:ring-blue-600 focus:bg-white transition-all">
+          <svg class="w-4 h-4 text-slate-400 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+
+        <!-- Undo & Redo Tool Buttons -->
+        <div class="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+          <button id="btn-undo" onclick="undo()" type="button" title="Undo (Ctrl+Z)" class="px-2 py-1 rounded text-slate-700 hover:bg-white hover:shadow-xs text-xs font-semibold flex items-center gap-1 transition-all disabled:opacity-35 disabled:cursor-not-allowed" disabled>
+            <span class="text-sm font-bold leading-none">↶</span>
+            <span class="hidden sm:inline">Undo</span>
+          </button>
+          <div class="w-px h-3.5 bg-slate-300 mx-0.5"></div>
+          <button id="btn-redo" onclick="redo()" type="button" title="Redo (Ctrl+Y)" class="px-2 py-1 rounded text-slate-700 hover:bg-white hover:shadow-xs text-xs font-semibold flex items-center gap-1 transition-all disabled:opacity-35 disabled:cursor-not-allowed" disabled>
+            <span class="text-sm font-bold leading-none">↷</span>
+            <span class="hidden sm:inline">Redo</span>
+          </button>
+        </div>
+
+        <!-- Add Task Button -->
+        <button id="btn-add-task" class="text-xs font-semibold bg-[#004B93] hover:bg-blue-800 text-white px-3.5 py-1.5 rounded-lg shadow-sm transition-all flex items-center gap-1.5 whitespace-nowrap">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          Add Task
+        </button>
+
+        <!-- Tools Dropdown -->
+        <div class="relative group">
+          <button class="text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 transition-all flex items-center gap-1 whitespace-nowrap">
+            <span>Tools</span>
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+          </button>
+          <div class="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-slate-200 py-1 hidden group-hover:block z-40">
+            <button id="btn-export-csv" class="w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2">
+              <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              Export CSV
+            </button>
+            <button id="btn-open-reset-modal" class="w-full text-left px-3 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2 border-t border-slate-100">
+              <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+              Reset to Baseline
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Table View Section with IN-HEADER COLUMN FILTERS & STRIKETHROUGH -->
+    <section id="view-table-container" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col">
+      <div class="overflow-auto flex-1 max-h-[650px]">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead class="sticky top-0 z-20 shadow-sm">
+            <tr class="bg-slate-800 text-white font-semibold select-none">
+              <th class="py-3 px-2 w-10 text-center">
+                <input type="checkbox" id="select-all-checkbox" title="Select all rows" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+              </th>
+              <th class="py-3 px-1 w-8 text-center" title="Drag handle">⋮⋮</th>
+              
+              <!-- Column: WBS with Filter Dropdown -->
+              <th class="py-3 px-2 w-20 text-center">
+                <div class="flex items-center justify-center gap-1">
+                  <span>WBS</span>
+                  <select id="th-filter-phase" class="bg-slate-700 text-white border-0 text-[10px] rounded px-1 py-0.5 outline-none cursor-pointer hover:bg-slate-600 font-normal">
+                    <option value="ALL">All</option>
+                    <option value="A">Phase A</option>
+                    <option value="B">Phase B</option>
+                    <option value="C">Phase C</option>
+                  </select>
+                </div>
+              </th>
+
+              <!-- Column: Task Name with Search/Filter -->
+              <th class="py-3 px-3 min-w-[320px]">
+                <div class="flex items-center justify-between">
+                  <span>Task Name (Click to edit)</span>
+                  <span class="text-[10px] text-slate-400 font-normal">Direct edit</span>
+                </div>
+              </th>
+
+              <!-- Column: PIC with Filter Dropdown -->
+              <th class="py-3 px-2 w-36 text-center">
+                <div class="flex items-center justify-center gap-1">
+                  <span>PIC</span>
+                  <select id="th-filter-pic" class="bg-slate-700 text-white border-0 text-[10px] rounded px-1 py-0.5 outline-none cursor-pointer hover:bg-slate-600 font-normal max-w-[70px]">
+                    <option value="ALL">All</option>
+                    <option value="Channel S">Channel S</option>
+                    <option value="MEM">MEM</option>
+                    <option value="Agency">Agency</option>
+                    <option value="Procurement">Procurement</option>
+                  </select>
+                </div>
+              </th>
+
+              <!-- Column: Start Date -->
+              <th class="py-3 px-2 w-32 text-center">Start Date</th>
+
+              <!-- Column: End Date -->
+              <th class="py-3 px-2 w-32 text-center">End Date</th>
+
+              <!-- Column: Work Days -->
+              <th class="py-3 px-1 w-20 text-center">Work Days</th>
+
+              <!-- Column: Status with Filter Dropdown -->
+              <th class="py-3 px-2 w-32 text-center">
+                <div class="flex items-center justify-center gap-1">
+                  <span>Status</span>
+                  <select id="th-filter-status" class="bg-slate-700 text-white border-0 text-[10px] rounded px-1 py-0.5 outline-none cursor-pointer hover:bg-slate-600 font-normal">
+                    <option value="ALL">All</option>
+                    <option value="done">Done</option>
+                    <option value="Inprogress">Inprogress</option>
+                    <option value="Not started">Not started</option>
+                  </select>
+                </div>
+              </th>
+
+              <!-- Column: Progress -->
+              <th class="py-3 px-2 w-20 text-center">Progress</th>
+
+              <!-- Column: Actions -->
+              <th class="py-3 px-2 w-24 text-center">Move / Delete</th>
+            </tr>
+          </thead>
+          <tbody id="task-table-body" class="divide-y divide-slate-100">
+            <!-- Dynamic rows rendered here with strike-through on done -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Gantt Chart View Section with TWO-TIERED WEEKS & TET HIGHLIGHT & TASK FILTER -->
+    <section id="view-gantt-container" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hidden flex-1 flex flex-col p-4">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 pb-3 border-b border-slate-100">
+        <div>
+          <h2 class="text-sm font-bold text-slate-800">Master Project Schedule (Gantt Chart)</h2>
+          <p class="text-xs text-slate-500">Timeline view with weekly breakdown · Nov 2026 to Dec 2027 (Official Holidays Highlighted)</p>
+        </div>
+        <div class="flex items-center gap-3 text-xs flex-wrap">
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-blue-300"></span> Planned Duration</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-[#004B93]"></span> Completed Progress</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500"></span> Done Task</div>
+          <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-500"></span> 🧧 Holiday</div>
+        </div>
+      </div>
+      
+      <!-- Interactive Gantt Canvas Container with Fixed/Sticky Header -->
+      <div class="overflow-auto flex-1 max-h-[650px] border border-slate-200 rounded-lg shadow-inner bg-white relative">
+        <div id="gantt-chart-wrapper" class="min-w-[2000px]">
+          <!-- Gantt Header (Months + Weeks + Tet highlight) & Formatted Bars rendered via JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FLOATING GROUP ACTIONS BAR -->
+  <div id="floating-group-bar" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-4 z-40 transition-all duration-300 transform translate-y-24 opacity-0 pointer-events-none">
+    <div class="flex items-center gap-2 text-xs">
+      <span class="w-2 h-2 rounded-full bg-blue-400 animate-ping"></span>
+      <span>Selected: <strong id="group-selected-count" class="text-blue-300 font-bold">0</strong> tasks</span>
+    </div>
+    <div class="h-4 w-px bg-slate-700"></div>
+    <div class="flex items-center gap-1.5 text-xs">
+      <button id="btn-group-move-up" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium flex items-center gap-1 transition-colors">
+        ▲ Move Group Up
+      </button>
+      <button id="btn-group-move-down" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium flex items-center gap-1 transition-colors">
+        ▼ Move Group Down
+      </button>
+      <button id="btn-group-clear" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-medium transition-colors">
+        Clear
+      </button>
+    </div>
+  </div>
+
+  <!-- Add Task Modal -->
+  <div id="modal-add" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+      <div class="bg-slate-800 text-white px-5 py-4 flex justify-between items-center">
+        <h3 class="font-bold text-sm">Add New Task</h3>
+        <button id="modal-add-close" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+      <form id="form-add" class="p-5 space-y-4 text-xs">
+        <!-- Row Style / Type Selection (Standard Task, Blue Phase, Gray Section) -->
+        <div>
+          <label class="block font-medium text-slate-700 mb-1.5">Loại hàng (Row Type / Style)</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-all has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50/60 has-[:checked]:shadow-xs">
+              <input type="radio" name="add-row-type" value="leaf" checked class="text-blue-600 focus:ring-blue-500 cursor-pointer">
+              <span class="font-medium text-slate-700 text-[11px]">📋 Task thường</span>
+            </label>
+            <label class="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-all has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50/60 has-[:checked]:shadow-xs">
+              <input type="radio" name="add-row-type" value="phase" class="text-blue-600 focus:ring-blue-500 cursor-pointer">
+              <span class="font-bold text-[#004B93] text-[11px]">🟦 Title xanh</span>
+            </label>
+            <label class="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-all has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50/60 has-[:checked]:shadow-xs">
+              <input type="radio" name="add-row-type" value="section" class="text-blue-600 focus:ring-blue-500 cursor-pointer">
+              <span class="font-semibold text-slate-700 text-[11px]">⬜ Title xám</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-700 mb-1">Task Name</label>
+          <input type="text" id="add-task" required placeholder="Enter task description..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">WBS Code</label>
+            <input type="text" id="add-wbs" required placeholder="e.g. 11, 12..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">Person in Charge (PIC)</label>
+            <input type="text" id="add-pic" placeholder="Channel S, MEM, Agency, hoặc gõ tên..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none" value="Channel S">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">Start Date</label>
+            <input type="date" id="add-start" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">End Date</label>
+            <input type="date" id="add-end" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">Status</label>
+            <select id="add-status" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none">
+              <option value="Not started">Not started</option>
+              <option value="Inprogress">Inprogress</option>
+              <option value="done">done</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-medium text-slate-700 mb-1">Actual Progress (%)</label>
+            <input type="number" id="add-actual" min="0" max="100" step="5" value="0" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-600 focus:outline-none">
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <button type="button" id="modal-add-cancel" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 font-medium">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-[#004B93] hover:bg-blue-800 text-white rounded-lg font-semibold shadow-sm">Add Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div id="modal-delete" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 border border-slate-200 text-center">
+      <div class="w-12 h-12 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+      </div>
+      <h3 class="text-sm font-bold text-slate-800 mb-1">Delete Task?</h3>
+      <p id="delete-task-name" class="text-xs text-slate-500 mb-4 truncate font-medium"></p>
+      <div class="flex justify-center gap-2 text-xs">
+        <button id="modal-delete-cancel" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 font-medium">Cancel</button>
+        <button id="modal-delete-confirm" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-semibold shadow-sm">Delete Row</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Baseline Modal -->
+  <div id="modal-reset" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-5 border border-slate-200 text-center">
+      <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+      </div>
+      <h3 class="text-sm font-bold text-slate-800 mb-1">Reset to Updated Baseline?</h3>
+      <p class="text-xs text-slate-500 mb-4">This will restore all default tasks with the updated Phase B & C schedule.</p>
+      <div class="flex justify-center gap-2 text-xs">
+        <button id="modal-reset-cancel" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 font-medium">Cancel</button>
+        <button id="modal-reset-confirm" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold shadow-sm">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+    SPVB Visibility Management System · Trade Marketing Operations & Channel S · 2026-2027
+  </footer>
+
+  <!-- Application Logic -->
+  <script>
+    const STORAGE_KEY = 'spvb_vms_master_plan_tasks_v15';
+    const DEFAULT_DATA = [{"id": "A", "type": "phase", "wbs": "A", "task": "PROJECT INITIATION", "pic": "Channel S", "startDate": "2026-11-04", "endDate": "2027-01-08", "status": "Inprogress", "actual": 6}, {"id": "1", "type": "section", "wbs": "1", "task": "Kick-off Project", "pic": "Channel S", "startDate": "2026-11-04", "endDate": "2026-11-09", "status": "Inprogress", "actual": 50}, {"id": "1.1", "type": "leaf", "wbs": "1.1", "task": "Meeting with CPM to review FTrack platform & learnings", "pic": "Channel S", "startDate": "2026-11-04", "endDate": "2026-11-04", "status": "done", "actual": 100}, {"id": "1.2", "type": "leaf", "wbs": "1.2", "task": "Internal kick-off meeting with MEM", "pic": "Channel S", "startDate": "2026-11-09", "endDate": "2026-11-09", "status": "done", "actual": 100}, {"id": "1.3", "type": "leaf", "wbs": "1.3", "task": "Gather inputs c Ý", "pic": "Channel S", "startDate": "2026-11-10", "endDate": "2026-11-10", "status": "Not started", "actual": 0}, {"id": "1.4", "type": "leaf", "wbs": "1.4", "task": "Finalize AOP proposal", "pic": "Channel S", "startDate": "2026-11-12", "endDate": "2026-11-20", "status": "Not started", "actual": 0}, {"id": "1.5", "type": "leaf", "wbs": "1.5", "task": "Excom approval & recap email", "pic": "Channel S", "startDate": "2026-12-01", "endDate": "2026-12-01", "status": "Not started", "actual": 0}, {"id": "2", "type": "section", "wbs": "2", "task": "Budget & Bidding", "pic": "Channel S", "startDate": "2026-11-09", "endDate": "2027-01-08", "status": "Not started", "actual": 0}, {"id": "2.1", "type": "leaf", "wbs": "2.1", "task": "Send requirement to Procurement", "pic": "Channel S", "startDate": "2026-12-07", "endDate": "2026-12-07", "status": "Not started", "actual": 0}, {"id": "2.2", "type": "leaf", "wbs": "2.2", "task": "Brief to Agency", "pic": "Procurement", "startDate": "2026-12-08", "endDate": "2026-12-11", "status": "Not started", "actual": 0}, {"id": "2.3", "type": "leaf", "wbs": "2.3", "task": "Agency prepare", "pic": "Agency", "startDate": "2026-12-14", "endDate": "2026-12-18", "status": "Not started", "actual": 0}, {"id": "2.4", "type": "leaf", "wbs": "2.4", "task": "Present proposal", "pic": "Agency", "startDate": "2026-12-21", "endDate": "2026-12-25", "status": "Not started", "actual": 0}, {"id": "2.5", "type": "leaf", "wbs": "2.5", "task": "Technical validation", "pic": "MEM", "startDate": "2026-12-28", "endDate": "2026-12-31", "status": "Not started", "actual": 0}, {"id": "2.6", "type": "leaf", "wbs": "2.6", "task": "Reco/Final Agency/ Finalize contract", "pic": "Procurement", "startDate": "2027-01-04", "endDate": "2027-01-15", "status": "Not started", "actual": 0}, {"id": "B", "type": "phase", "wbs": "B", "task": "DEVELOPMENT & UAT", "pic": "Agency / MEM", "startDate": "2027-01-11", "endDate": "2027-06-10", "status": "Not started", "actual": 0}, {"id": "3", "type": "leaf", "wbs": "3", "task": "Platform Development", "pic": "Agency", "startDate": "2027-01-18", "endDate": "2027-04-01", "status": "Not started", "actual": 0}, {"id": "4", "type": "leaf", "wbs": "4", "task": "Testing & UAT", "pic": "Agency", "startDate": "2027-04-01", "endDate": "2027-04-29", "status": "Not started", "actual": 0}, {"id": "C", "type": "phase", "wbs": "C", "task": "PILOT & ROLLOUT", "pic": "Agency", "startDate": "2027-06-11", "endDate": "2027-07-15", "status": "Not started", "actual": 0}, {"id": "5", "type": "leaf", "wbs": "5", "task": "Cascade to Users (TMKT & Agency execution)", "pic": "Agency", "startDate": "2027-05-03", "endDate": "2027-05-07", "status": "Not started", "actual": 0}, {"id": "6", "type": "leaf", "wbs": "6", "task": "Rollout & Handover", "pic": "Agency", "startDate": "2027-05-10", "endDate": "2027-05-14", "status": "Not started", "actual": 0}];
+
+    let tasks = [];
+    let deleteTargetId = null;
+    let selectedTaskIds = new Set();
+    let draggedId = null;
+
+    // Undo / Redo History Stacks
+    let undoHistory = [];
+    let redoHistory = [];
+    const MAX_HISTORY = 40;
+
+    function snapshotState() {
+      undoHistory.push(JSON.stringify(tasks));
+      if (undoHistory.length > MAX_HISTORY) undoHistory.shift();
+      redoHistory = []; // Clear redo on new action
+      updateUndoRedoButtons();
+    }
+
+    function updateUndoRedoButtons() {
+      const undoBtn = document.getElementById('btn-undo');
+      const redoBtn = document.getElementById('btn-redo');
+      if (undoBtn) undoBtn.disabled = undoHistory.length === 0;
+      if (redoBtn) redoBtn.disabled = redoHistory.length === 0;
+    }
+
+    window.undo = function() {
+      if (undoHistory.length === 0) return;
+      redoHistory.push(JSON.stringify(tasks));
+      const prev = undoHistory.pop();
+      tasks = JSON.parse(prev);
+      saveTasksOnly();
+      recalculateAggregates();
+      renderTable();
+      renderGantt();
+      updateUndoRedoButtons();
+      showSaveToast('↶ Đã hoàn tác (Undo)');
+    };
+
+    window.redo = function() {
+      if (redoHistory.length === 0) return;
+      undoHistory.push(JSON.stringify(tasks));
+      const next = redoHistory.pop();
+      tasks = JSON.parse(next);
+      saveTasksOnly();
+      recalculateAggregates();
+      renderTable();
+      renderGantt();
+      updateUndoRedoButtons();
+      showSaveToast('↷ Đã làm lại (Redo)');
+    };
+
+    function saveTasksOnly() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      } catch (e) {
+        console.error('Error saving tasks:', e);
+      }
+    }
+
+    // Filters state
+    let filterPhase = 'ALL';
+    let filterPic = 'ALL';
+    let filterStatus = 'ALL';
+    let searchVal = '';
+
+    const PIC_OPTIONS = ['Channel S', 'MEM', 'Agency', 'Agency / MEM', ''];
+
+    const HOLIDAYS = [
+      '2027-01-01',
+      '2027-02-04',
+      '2027-02-05',
+      '2027-02-06',
+      '2027-02-07',
+      '2027-02-08',
+      '2027-02-09',
+      '2027-02-10',
+      '2027-04-30',
+      '2027-05-01',
+      '2027-05-03'
+    ];
+
+    function getWorkingDays(d1, d2) {
+      if (!d1 || !d2) return 0;
+      let start = new Date(d1);
+      let end = new Date(d2);
+      if (start > end) return 0;
+
+      let count = 0;
+      let cur = new Date(start);
+      while (cur <= end) {
+        const dayOfWeek = cur.getDay();
+        const dateStr = cur.toISOString().slice(0, 10);
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !HOLIDAYS.includes(dateStr)) {
+          count++;
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      return Math.max(1, count);
+    }
+
+    function formatDate(str) {
+      if (!str) return '';
+      const parts = str.split('-');
+      if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      return str;
+    }
+
+    function loadTasks() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          tasks = JSON.parse(stored);
+        } else {
+          tasks = JSON.parse(JSON.stringify(DEFAULT_DATA));
+          saveTasks();
+        }
+      } catch (e) {
+        console.error('Error loading tasks:', e);
+        tasks = JSON.parse(JSON.stringify(DEFAULT_DATA));
+      }
+      recalculateAggregates();
+    }
+
+    function saveTasks(recordSnapshot = true) {
+      try {
+        if (recordSnapshot) {
+          snapshotState();
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+        showSaveToast();
+      } catch (e) {
+        console.error('Error saving tasks:', e);
+      }
+    }
+
+    function showSaveToast() {
+      const el = document.getElementById('save-status');
+      if (el) {
+        el.textContent = '✓ Auto-saved';
+        el.className = 'text-emerald-300 font-medium px-2.5 py-1 bg-emerald-950/40 rounded border border-emerald-500/30 text-[11px] flex items-center gap-1 opacity-100 transition-opacity';
+        setTimeout(() => {
+          el.textContent = '✓ Synced';
+        }, 2000);
+      }
+    }
+
+    function recalculateAggregates() {
+      tasks.forEach(t => {
+        if (t.type === 'leaf') {
+          if (t.status === 'done' && (t.actual === undefined || t.actual < 100)) t.actual = 100;
+          else if (t.status === 'Not started' && t.actual === undefined) t.actual = 0;
+          else if (t.status === 'Inprogress' && (t.actual === 0 || t.actual === undefined)) t.actual = 50;
+        }
+      });
+
+      const leafTasks = tasks.filter(t => t.type === 'leaf');
+      
+      let totalWeightedDays = 0;
+      let totalDays = 0;
+      leafTasks.forEach(t => {
+        const days = getWorkingDays(t.startDate, t.endDate);
+        const actual = Number(t.actual) || 0;
+        totalDays += days;
+        totalWeightedDays += days * (actual / 100);
+      });
+
+      const overallProgress = totalDays > 0 ? Math.round((totalWeightedDays / totalDays) * 100) : 0;
+      
+      const kpiProgVal = document.getElementById('kpi-progress-val');
+      const kpiProgBadge = document.getElementById('kpi-progress-badge');
+      const kpiProgBar = document.getElementById('kpi-progress-bar');
+      if (kpiProgVal) kpiProgVal.textContent = overallProgress + '%';
+      if (kpiProgBadge) kpiProgBadge.textContent = overallProgress + '%';
+      if (kpiProgBar) kpiProgBar.style.width = overallProgress + '%';
+
+      const doneCount = leafTasks.filter(t => t.status === 'done').length;
+      const progCount = leafTasks.filter(t => t.status === 'Inprogress').length;
+      const pendingCount = leafTasks.filter(t => t.status === 'Not started').length;
+      
+      if (document.getElementById('count-done')) document.getElementById('count-done').textContent = doneCount;
+      if (document.getElementById('count-prog')) document.getElementById('count-prog').textContent = progCount;
+      if (document.getElementById('count-pending')) document.getElementById('count-pending').textContent = pendingCount;
+      if (document.getElementById('kpi-total-tasks')) document.getElementById('kpi-total-tasks').textContent = leafTasks.length + ' tasks';
+    }
+
+    function updateFloatingBar() {
+      const bar = document.getElementById('floating-group-bar');
+      const countEl = document.getElementById('group-selected-count');
+      const selectAllCb = document.getElementById('select-all-checkbox');
+      
+      if (!bar) return;
+
+      const count = selectedTaskIds.size;
+      if (countEl) countEl.textContent = count;
+
+      if (count > 0) {
+        bar.classList.remove('translate-y-24', 'opacity-0', 'pointer-events-none');
+        bar.classList.add('translate-y-0', 'opacity-100', 'pointer-events-auto');
+      } else {
+        bar.classList.add('translate-y-24', 'opacity-0', 'pointer-events-none');
+        bar.classList.remove('translate-y-0', 'opacity-100', 'pointer-events-auto');
+      }
+
+      if (selectAllCb) {
+        const allLeafs = tasks.filter(t => t.type === 'leaf');
+        selectAllCb.checked = allLeafs.length > 0 && selectedTaskIds.size === allLeafs.length;
+      }
+    }
+
+    window.toggleTaskSelection = function(id, isChecked) {
+      if (isChecked) {
+        selectedTaskIds.add(id);
+      } else {
+        selectedTaskIds.delete(id);
+      }
+      updateFloatingBar();
+      const tr = document.getElementById('row-' + id);
+      if (tr) {
+        if (isChecked) tr.classList.add('bg-blue-50/90');
+        else tr.classList.remove('bg-blue-50/90');
+      }
+    };
+
+    window.moveGroup = function(direction) {
+      if (selectedTaskIds.size === 0) return;
+
+      const indices = [];
+      tasks.forEach((t, idx) => {
+        if (selectedTaskIds.has(t.id)) indices.push(idx);
+      });
+
+      if (indices.length === 0) return;
+
+      if (direction === -1) {
+        if (indices[0] === 0) return;
+        for (let i = 0; i < indices.length; i++) {
+          const curr = indices[i];
+          const target = curr - 1;
+          const temp = tasks[curr];
+          tasks[curr] = tasks[target];
+          tasks[target] = temp;
+        }
+      } else if (direction === 1) {
+        if (indices[indices.length - 1] === tasks.length - 1) return;
+        for (let i = indices.length - 1; i >= 0; i--) {
+          const curr = indices[i];
+          const target = curr + 1;
+          const temp = tasks[curr];
+          tasks[curr] = tasks[target];
+          tasks[target] = temp;
+        }
+      }
+
+      saveTasks();
+      recalculateAggregates();
+      renderTable();
+      renderGantt();
+      updateFloatingBar();
+    };
+
+    window.handleDragStart = function(e, id) {
+      draggedId = id;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', id);
+      
+      const row = document.getElementById('row-' + id);
+      if (row) {
+        row.classList.add('dragging');
+      }
+    };
+
+    window.handleDragOver = function(e, id) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      
+      const row = document.getElementById('row-' + id);
+      if (!row || id === draggedId) return;
+
+      const rect = row.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+
+      row.classList.remove('drag-over-top', 'drag-over-bottom');
+      if (e.clientY < midY) {
+        row.classList.add('drag-over-top');
+      } else {
+        row.classList.add('drag-over-bottom');
+      }
+    };
+
+    window.handleDragLeave = function(e, id) {
+      const row = document.getElementById('row-' + id);
+      if (row) {
+        row.classList.remove('drag-over-top', 'drag-over-bottom');
+      }
+    };
+
+    window.handleDrop = function(e, targetId) {
+      e.preventDefault();
+      
+      const row = document.getElementById('row-' + targetId);
+      if (row) {
+        row.classList.remove('drag-over-top', 'drag-over-bottom');
+      }
+
+      if (!draggedId || draggedId === targetId) return;
+
+      const sourceIndex = tasks.findIndex(t => t.id === draggedId);
+      let targetIndex = tasks.findIndex(t => t.id === targetId);
+
+      if (sourceIndex < 0 || targetIndex < 0) return;
+
+      if (row) {
+        const rect = row.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        if (e.clientY >= midY && targetIndex < tasks.length - 1) {
+          targetIndex++;
+        }
+      }
+
+      if (selectedTaskIds.has(draggedId) && selectedTaskIds.size > 1) {
+        const movingTasks = tasks.filter(t => selectedTaskIds.has(t.id));
+        tasks = tasks.filter(t => !selectedTaskIds.has(t.id));
+        
+        let newTargetIndex = tasks.findIndex(t => t.id === targetId);
+        if (newTargetIndex < 0) newTargetIndex = tasks.length;
+        
+        tasks.splice(newTargetIndex, 0, ...movingTasks);
+      } else {
+        const [removed] = tasks.splice(sourceIndex, 1);
+        tasks.splice(targetIndex, 0, removed);
+      }
+
+      draggedId = null;
+      saveTasks();
+      recalculateAggregates();
+      renderTable();
+      renderGantt();
+      updateFloatingBar();
+    };
+
+    window.handleDragEnd = function(e, id) {
+      draggedId = null;
+      document.querySelectorAll('.task-row').forEach(r => {
+        r.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom');
+      });
+    };
+
+    // INLINE UPDATE HANDLER
+    window.updateInlineField = function(id, field, value) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      if (field === 'actual') {
+        task.actual = Math.min(100, Math.max(0, Number(value) || 0));
+        if (task.actual === 100) task.status = 'done';
+        else if (task.actual === 0) task.status = 'Not started';
+        else if (task.actual > 0 && task.status === 'Not started') task.status = 'Inprogress';
+      } else if (field === 'status') {
+        task.status = value;
+        if (value === 'done') task.actual = 100;
+        else if (value === 'Not started') task.actual = 0;
+        else if (value === 'Inprogress' && (task.actual === 0 || task.actual === 100)) task.actual = 50;
+      } else if (field === 'startDate' || field === 'endDate') {
+        task[field] = value;
+        if (task.startDate && task.endDate && task.startDate > task.endDate) {
+          if (field === 'startDate') task.endDate = task.startDate;
+          else task.startDate = task.endDate;
+        }
+      } else {
+        task[field] = value;
+      }
+
+      saveTasks();
+      recalculateAggregates();
+      renderTable();
+      renderGantt();
+    };
+
+    window.onInlineTextInput = function(id, value) {
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        task.task = value;
+        saveTasks();
+      }
+    };
+
+    window.onInlineWbsInput = function(id, value) {
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        task.wbs = value;
+        saveTasks();
+      }
+    };
+
+    // RENDER TABLE VIEW WITH STRIKETHROUGH FOR DONE TASKS
+    
+
+
+        
+    let editingPicTaskId = null;
+    const PRESET_PICS = ['Channel S', 'MEM', 'Agency', 'Procurement'];
+
+    function getPicDropdownHtml(id, currentPic, isPhase, isSection, isDone) {
+      if (editingPicTaskId === id) {
+        let inputStyle = 'w-full rounded px-1.5 py-0.5 text-[11px] font-medium outline-none text-center';
+        if (isPhase) {
+          inputStyle += ' bg-white text-slate-900 border border-white';
+        } else if (isSection) {
+          inputStyle += ' bg-white text-slate-900 border border-blue-500 focus:ring-1 focus:ring-blue-500';
+        } else {
+          inputStyle += ' bg-white text-slate-900 border border-blue-500 focus:ring-1 focus:ring-blue-500';
+        }
+        return `
+          <div class="flex items-center gap-1 w-full px-0.5">
+            <input type="text" id="custom-pic-input-${id}" value="${currentPic || ''}" placeholder="Nhập PIC..." class="${inputStyle}" onkeydown="handleCustomPicKey(event, '${id}', this.value)" onblur="saveCustomPic('${id}', this.value)">
+            <button type="button" onclick="cancelCustomPic()" class="text-slate-400 hover:text-slate-600 text-xs px-0.5" title="Hủy">✕</button>
+          </div>
+        `;
+      }
+
+      let selectClass = 'w-full rounded px-1 py-1 text-[11px] font-medium outline-none cursor-pointer text-center';
+      if (isPhase) {
+        selectClass += ' bg-blue-600/60 hover:bg-blue-600/80 text-white border border-blue-400/50';
+      } else if (isSection) {
+        selectClass += ' bg-slate-200/80 hover:bg-slate-200 text-slate-800 border border-slate-300';
+      } else {
+        selectClass += ` bg-slate-100 hover:bg-slate-200 border border-slate-200 ${isDone ? 'text-slate-400 line-through' : 'text-slate-700'}`;
+      }
+
+      const isCustomVal = currentPic && !PRESET_PICS.includes(currentPic);
+
+      return `
+        <select onchange="handlePicDropdownChange('${id}', this.value)" class="${selectClass}">
+          ${isCustomVal ? `<option value="${currentPic}" selected>${currentPic} (Custom)</option>` : ''}
+          <option value="Channel S" ${currentPic === 'Channel S' ? 'selected' : ''}>Channel S</option>
+          <option value="MEM" ${currentPic === 'MEM' ? 'selected' : ''}>MEM</option>
+          <option value="Agency" ${currentPic === 'Agency' ? 'selected' : ''}>Agency</option>
+          <option value="Procurement" ${currentPic === 'Procurement' ? 'selected' : ''}>Procurement</option>
+          <option value="__CUSTOM__">✏️ Custom (nhập text)...</option>
+        </select>
+      `;
+    }
+
+    window.handlePicDropdownChange = function(id, value) {
+      if (value === '__CUSTOM__') {
+        editingPicTaskId = id;
+        renderTable();
+        setTimeout(() => {
+          const inp = document.getElementById('custom-pic-input-' + id);
+          if (inp) {
+            inp.focus();
+            inp.select();
+          }
+        }, 50);
+      } else {
+        editingPicTaskId = null;
+        updateInlineField(id, 'pic', value);
+      }
+    };
+
+    window.saveCustomPic = function(id, value) {
+      editingPicTaskId = null;
+      const trimmed = (value || '').trim();
+      updateInlineField(id, 'pic', trimmed);
+    };
+
+    window.handleCustomPicKey = function(event, id, value) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        saveCustomPic(id, value);
+      } else if (event.key === 'Escape') {
+        editingPicTaskId = null;
+        renderTable();
+      }
+    };
+
+    window.cancelCustomPic = function() {
+      editingPicTaskId = null;
+      renderTable();
+    };
+
+    function renderTable() {
+      const tbody = document.getElementById('task-table-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      tasks.forEach((t, index) => {
+        if (searchVal && !t.task.toLowerCase().includes(searchVal) && !t.wbs.toLowerCase().includes(searchVal)) {
+          return;
+        }
+        if (filterStatus !== 'ALL' && t.type === 'leaf' && t.status !== filterStatus) {
+          return;
+        }
+        if (filterPic !== 'ALL' && t.pic !== filterPic && !t.pic.includes(filterPic)) {
+          return;
+        }
+        if (filterPhase !== 'ALL') {
+          const isPhase = t.wbs.startsWith(filterPhase) || (filterPhase === 'A' && ['1', '2', '3'].some(p => t.wbs.startsWith(p)))
+                          || (filterPhase === 'B' && ['4', '5', '6', '7'].some(p => t.wbs === p))
+                          || (filterPhase === 'C' && ['8', '9', '10'].some(p => t.wbs === p));
+          if (!isPhase) return;
+        }
+
+        const tr = document.createElement('tr');
+        tr.id = 'row-' + t.id;
+        tr.className = 'task-row transition-all';
+        tr.setAttribute('ondragover', `handleDragOver(event, '${t.id}')`);
+        tr.setAttribute('ondragleave', `handleDragLeave(event, '${t.id}')`);
+        tr.setAttribute('ondrop', `handleDrop(event, '${t.id}')`);
+
+        const isChecked = selectedTaskIds.has(t.id);
+        if (isChecked) tr.classList.add('bg-blue-50/90');
+
+        const workDays = getWorkingDays(t.startDate, t.endDate);
+        const isDone = t.status === 'done';
+
+        // Custom formatting classes
+        if (t.type === 'phase') {
+          // --- 1. PHASE ROW (Blue, now fully EDITABLE & DELETABLE) ---
+          tr.className += ' bg-[#4B86B4] text-white font-bold text-xs tracking-wide uppercase';
+          tr.innerHTML = `
+            <td class="py-2.5 px-2 text-center">
+              <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleTaskSelection('${t.id}', this.checked)" class="task-checkbox rounded border-blue-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+            </td>
+            <td class="py-2.5 px-1 text-center drag-handle" draggable="true" ondragstart="handleDragStart(event, '${t.id}')" ondragend="handleDragEnd(event, '${t.id}')" title="Hold & drag row">
+              <span class="text-blue-200 hover:text-white text-base">⋮⋮</span>
+            </td>
+            <td class="py-2.5 px-2 text-center border-r border-blue-400/30">
+              <input type="text" value="${t.wbs}" oninput="onInlineWbsInput('${t.id}', this.value)" class="w-12 text-center bg-transparent hover:bg-blue-600/50 focus:bg-white focus:text-slate-900 rounded py-0.5 outline-none font-bold uppercase text-white">
+            </td>
+            <td class="py-2.5 px-3">
+              <input type="text" value="${t.task}" oninput="onInlineTextInput('${t.id}', this.value)" class="w-full bg-transparent hover:bg-blue-600/40 focus:bg-white focus:text-slate-900 rounded px-1.5 py-0.5 outline-none font-bold uppercase transition-colors">
+            </td>
+            <td class="py-2.5 px-2 text-center">
+              ${getPicDropdownHtml(t.id, t.pic, true, false, false)}
+            </td>
+            <td class="py-2.5 px-2 text-center">
+              <input type="date" value="${t.startDate}" onchange="updateInlineField('${t.id}', 'startDate', this.value)" class="w-full text-center bg-transparent hover:bg-blue-600/50 focus:bg-white focus:text-slate-900 rounded px-1 py-0.5 text-xs text-white outline-none cursor-pointer">
+            </td>
+            <td class="py-2.5 px-2 text-center">
+              <input type="date" value="${t.endDate}" onchange="updateInlineField('${t.id}', 'endDate', this.value)" class="w-full text-center bg-transparent hover:bg-blue-600/50 focus:bg-white focus:text-slate-900 rounded px-1 py-0.5 text-xs text-white outline-none cursor-pointer">
+            </td>
+            <td class="py-2.5 px-1 text-center font-normal">${workDays}d</td>
+            <td class="py-2.5 px-2 text-center">
+              <select onchange="updateInlineField('${t.id}', 'status', this.value)" class="bg-blue-700 text-white border border-blue-400/50 rounded px-1.5 py-0.5 text-[11px] outline-none cursor-pointer">
+                <option value="Inprogress" ${t.status === 'Inprogress' ? 'selected' : ''}>Inprogress</option>
+                <option value="Not started" ${t.status === 'Not started' ? 'selected' : ''}>Not started</option>
+                <option value="done" ${t.status === 'done' ? 'selected' : ''}>done</option>
+              </select>
+            </td>
+            <td class="py-2.5 px-2 text-center font-bold">
+              <input type="number" min="0" max="100" value="${t.actual}" onchange="updateInlineField('${t.id}', 'actual', this.value)" class="w-10 text-right bg-transparent hover:bg-blue-600/50 focus:bg-white focus:text-slate-900 rounded px-1 py-0.5 font-bold text-white outline-none">%
+            </td>
+            <td class="py-2.5 px-2 text-center">
+              <div class="flex items-center justify-center space-x-1">
+                <button onclick="moveTask(${index}, -1)" title="Move Up" class="p-1 hover:bg-blue-600 rounded text-blue-100 hover:text-white">▲</button>
+                <button onclick="moveTask(${index}, 1)" title="Move Down" class="p-1 hover:bg-blue-600 rounded text-blue-100 hover:text-white">▼</button>
+                <button onclick="openDeleteModal('${t.id}')" title="Delete Phase Row" class="p-1 hover:bg-rose-600 rounded text-rose-200 hover:text-white">✕</button>
+              </div>
+            </td>
+          `;
+        } else if (t.type === 'section') {
+          // --- 2. SECTION ROW (Gray, now fully EDITABLE & DELETABLE) ---
+          tr.className += ' bg-slate-100 text-slate-800 font-semibold border-t border-slate-200';
+          tr.innerHTML = `
+            <td class="py-2 px-2 text-center">
+              <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleTaskSelection('${t.id}', this.checked)" class="task-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+            </td>
+            <td class="py-2 px-1 text-center drag-handle" draggable="true" ondragstart="handleDragStart(event, '${t.id}')" ondragend="handleDragEnd(event, '${t.id}')" title="Hold & drag row">
+              <span class="text-slate-400 hover:text-slate-800 text-base">⋮⋮</span>
+            </td>
+            <td class="py-2 px-2 text-center font-bold text-[#004B93] border-r border-slate-200">
+              <input type="text" value="${t.wbs}" oninput="onInlineWbsInput('${t.id}', this.value)" class="w-10 text-center bg-transparent hover:bg-slate-200 focus:bg-white rounded py-0.5 outline-none font-bold text-[#004B93]">
+            </td>
+            <td class="py-2 px-3">
+              <input type="text" value="${t.task}" oninput="onInlineTextInput('${t.id}', this.value)" class="w-full bg-transparent hover:bg-slate-200 focus:bg-white rounded px-2 py-0.5 font-semibold text-slate-900 outline-none">
+            </td>
+            <td class="py-2 px-2 text-center">
+              ${getPicDropdownHtml(t.id, t.pic, false, true, false)}
+            </td>
+            <td class="py-2 px-2 text-center text-slate-600 font-normal">
+              <input type="date" value="${t.startDate}" onchange="updateInlineField('${t.id}', 'startDate', this.value)" class="w-full text-center bg-transparent hover:bg-white focus:bg-white rounded px-1 py-0.5 text-xs text-slate-700 outline-none cursor-pointer">
+            </td>
+            <td class="py-2 px-2 text-center text-slate-600 font-normal">
+              <input type="date" value="${t.endDate}" onchange="updateInlineField('${t.id}', 'endDate', this.value)" class="w-full text-center bg-transparent hover:bg-white focus:bg-white rounded px-1 py-0.5 text-xs text-slate-700 outline-none cursor-pointer">
+            </td>
+            <td class="py-2 px-1 text-center text-slate-600 font-normal">${workDays}d</td>
+            <td class="py-2 px-2 text-center">
+              <select onchange="updateInlineField('${t.id}', 'status', this.value)" class="bg-white border border-slate-300 rounded px-1.5 py-0.5 text-[11px] outline-none cursor-pointer">
+                <option value="Inprogress" ${t.status === 'Inprogress' ? 'selected' : ''}>Inprogress</option>
+                <option value="Not started" ${t.status === 'Not started' ? 'selected' : ''}>Not started</option>
+                <option value="done" ${t.status === 'done' ? 'selected' : ''}>done</option>
+              </select>
+            </td>
+            <td class="py-2 px-2 text-center font-bold text-slate-700">
+              <input type="number" min="0" max="100" value="${t.actual}" onchange="updateInlineField('${t.id}', 'actual', this.value)" class="w-10 text-right bg-transparent hover:bg-white focus:bg-white rounded px-1 py-0.5 font-bold outline-none">%
+            </td>
+            <td class="py-2 px-2 text-center">
+              <div class="flex items-center justify-center space-x-1">
+                <button onclick="moveTask(${index}, -1)" title="Move Up" class="p-1 hover:bg-slate-200 rounded text-slate-500 hover:text-slate-800">▲</button>
+                <button onclick="moveTask(${index}, 1)" title="Move Down" class="p-1 hover:bg-slate-200 rounded text-slate-500 hover:text-slate-800">▼</button>
+                <button onclick="openDeleteModal('${t.id}')" title="Delete Section Row" class="p-1 hover:bg-rose-100 rounded text-rose-500 hover:text-rose-700">✕</button>
+              </div>
+            </td>
+          `;
+        } else {
+          // --- 3. LEAF ROW (Full direct inline editing, typeable PIC, Bold, Color, Strikethrough) ---
+          const isUatMilestone = t.wbs === '4' || t.task.includes('Testing & UAT');
+          
+          if (isDone) {
+            tr.className += ' bg-emerald-50/30 text-slate-400';
+          } else if (isUatMilestone) {
+            tr.className += ' bg-amber-50/70 hover:bg-amber-100/70 border-l-4 border-l-amber-500';
+          } else {
+            tr.className += ' hover:bg-blue-50/40';
+          }
+
+          let statusSelectBg = 'bg-slate-100 text-slate-600 border-slate-200';
+          if (t.status === 'done') statusSelectBg = 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold';
+          else if (t.status === 'Inprogress') statusSelectBg = 'bg-blue-100 text-blue-800 border-blue-300 font-bold';
+
+          tr.innerHTML = `
+            <td class="py-1.5 px-2 text-center">
+              <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleTaskSelection('${t.id}', this.checked)" class="task-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+            </td>
+            <td class="py-1.5 px-1 text-center drag-handle" draggable="true" ondragstart="handleDragStart(event, '${t.id}')" ondragend="handleDragEnd(event, '${t.id}')" title="Hold & drag row">
+              <span class="text-slate-400 hover:text-blue-700 text-base font-bold">⋮⋮</span>
+            </td>
+            <td class="py-1.5 px-2 text-center border-r border-slate-100">
+              <input type="text" value="${t.wbs}" oninput="onInlineWbsInput('${t.id}', this.value)" class="w-12 text-center ${isDone ? 'line-through text-slate-400' : 'text-slate-600'} font-mono text-[11px] bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded py-0.5 outline-none">
+            </td>
+            <td class="py-1.5 px-3">
+              <div class="flex items-center gap-1.5 w-full">
+                ${isUatMilestone ? '<span class="text-amber-500 font-bold text-sm flex-shrink-0" title="UAT Milestone">★</span>' : ''}
+                ${isDone ? '<span class="text-emerald-600 font-bold text-xs flex-shrink-0" title="Completed">✓</span>' : ''}
+                <input type="text" value="${t.task}" oninput="onInlineTextInput('${t.id}', this.value)" class="w-full bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-blue-600 rounded px-2 py-1 ${isDone ? 'line-through text-slate-400' : 'text-slate-800 font-normal'} outline-none transition-all">
+              </div>
+            </td>
+            <td class="py-1.5 px-2 text-center">
+              ${getPicDropdownHtml(t.id, t.pic, false, false, isDone)}
+            </td>
+            <td class="py-1.5 px-2 text-center">
+              <input type="date" value="${t.startDate}" onchange="updateInlineField('${t.id}', 'startDate', this.value)" class="w-full bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-1 py-1 text-[11px] ${isDone ? 'text-slate-400 line-through' : 'text-slate-700'} text-center outline-none cursor-pointer">
+            </td>
+            <td class="py-1.5 px-2 text-center">
+              <input type="date" value="${t.endDate}" onchange="updateInlineField('${t.id}', 'endDate', this.value)" class="w-full bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-1 py-1 text-[11px] ${isDone ? 'text-slate-400 line-through' : 'text-slate-700'} text-center outline-none cursor-pointer">
+            </td>
+            <td class="py-1.5 px-1 text-center font-medium ${isDone ? 'text-slate-400 line-through' : 'text-slate-500'} text-[11px]">
+              ${workDays}d
+            </td>
+            <td class="py-1.5 px-2 text-center">
+              <select onchange="updateInlineField('${t.id}', 'status', this.value)" class="w-full border rounded-lg px-2 py-1 text-[11px] outline-none cursor-pointer transition-colors ${statusSelectBg}">
+                <option value="Not started" ${t.status === 'Not started' ? 'selected' : ''}>Not started</option>
+                <option value="Inprogress" ${t.status === 'Inprogress' ? 'selected' : ''}>Inprogress</option>
+                <option value="done" ${t.status === 'done' ? 'selected' : ''}>done</option>
+              </select>
+            </td>
+            <td class="py-1.5 px-2 text-center">
+              <div class="flex items-center justify-center gap-0.5">
+                <input type="number" min="0" max="100" step="5" value="${t.actual}" onchange="updateInlineField('${t.id}', 'actual', this.value)" class="w-10 text-right bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 focus:ring-blue-500 rounded px-1 py-0.5 font-semibold ${isDone ? 'text-emerald-700' : 'text-slate-800'} text-[11px] outline-none">
+                <span class="text-slate-400 text-[10px]">%</span>
+              </div>
+            </td>
+            <td class="py-1.5 px-2 text-center">
+              <div class="flex items-center justify-center space-x-1">
+                <button onclick="moveTask(${index}, -1)" title="Move Up" class="p-1 hover:bg-blue-100 rounded text-slate-500 hover:text-blue-700 transition-colors font-bold">▲</button>
+                <button onclick="moveTask(${index}, 1)" title="Move Down" class="p-1 hover:bg-blue-100 rounded text-slate-500 hover:text-blue-700 transition-colors font-bold">▼</button>
+                <button onclick="openDeleteModal('${t.id}')" title="Delete Row" class="p-1 hover:bg-rose-100 rounded text-rose-400 hover:text-rose-600 transition-colors">✕</button>
+              </div>
+            </td>
+          `;
+        }
+
+        tbody.appendChild(tr);
+      });
+
+      updateFloatingBar();
+    }
+
+        function renderGantt() {
+      const wrapper = document.getElementById('gantt-chart-wrapper');
+      if (!wrapper) return;
+      wrapper.innerHTML = '';
+
+      // Spanning Nov 01, 2026 to Dec 31, 2027 (14 Months)
+      const projectStart = new Date('2026-11-01');
+      const projectEnd = new Date('2027-12-31');
+      const totalDays = Math.round((projectEnd - projectStart) / (1000 * 60 * 60 * 24));
+
+      const months = [
+        { name: 'Nov 2026', key: '2026-11', weeks: ['W1', 'W2', 'W3', 'W4'], holidayWeeks: [] },
+        { name: 'Dec 2026', key: '2026-12', weeks: ['W1', 'W2', 'W3', 'W4'], holidayWeeks: [] },
+        { name: 'Jan 2027', key: '2027-01', weeks: ['W1 🧧', 'W2', 'W3', 'W4'], holidayWeeks: [0] },
+        { name: 'Feb 2027', key: '2027-02', weeks: ['W1 🧧', 'W2 🧧', 'W3', 'W4'], holidayWeeks: [0, 1] },
+        { name: 'Mar 2027', key: '2027-03', weeks: ['W1', 'W2', 'W3', 'W4'], holidayWeeks: [] },
+        { name: 'Apr 2027', key: '2027-04', weeks: ['W1', 'W2', 'W3 🧧', 'W4 🧧'], holidayWeeks: [2, 3] },
+        { name: 'May 2027', key: '2027-05', weeks: ['W1 🧧', 'W2', 'W3', 'W4'], holidayWeeks: [0] },
+        { name: 'Jun 2027', key: '2027-06', weeks: ['W1', 'W2', 'W3', 'W4'], holidayWeeks: [] },
+        { name: 'Jul 2027', key: '2027-07', weeks: ['W1', 'W2', 'W3', 'W4'], holidayWeeks: [] },
+        { name: 'Aug 2027', key: '2027-08', weeks: ['W1', 'W2', 'W3', 'W4'], holidayWeeks: [] },
+        { name: 'Sep 2027', key: '2027-09', weeks: ['W1 🧧', 'W2', 'W3', 'W4'], holidayWeeks: [0] },
+        { name: 'Oct 2027', key: '2027-10', weeks: ['W1', 'W2', 'W3', 'W4'], holidayWeeks: [] },
+        { name: 'Nov 2027', key: '2027-11', weeks: ['W1', 'W2', 'W3', 'W4'], holidayWeeks: [] },
+        { name: 'Dec 2027', key: '2027-12', weeks: ['W1', 'W2', 'W3', 'W4'], holidayWeeks: [] }
+      ];
+
+      let html = '<div class="space-y-0 text-xs border border-slate-200 rounded-lg">';
+      
+      // Sticky Header Container
+      html += '<div class="sticky top-0 z-20 shadow-md bg-white">';
+
+      // Tier 1: Months Header with Task, PIC, Start Date, End Date, Status
+      html += '<div class="flex border-b border-slate-700 bg-slate-800 text-white font-bold py-2">';
+      html += `
+        <div class="w-60 px-3 flex-shrink-0 flex items-center justify-between border-r border-slate-700">
+          <span>Task Name</span>
+          <select id="gantt-filter-phase" class="bg-slate-700 text-white text-[10px] rounded px-1.5 py-0.5 outline-none font-normal cursor-pointer hover:bg-slate-600">
+            <option value="ALL">All</option>
+            <option value="A" ${filterPhase === 'A' ? 'selected' : ''}>Phase A</option>
+            <option value="B" ${filterPhase === 'B' ? 'selected' : ''}>Phase B</option>
+            <option value="C" ${filterPhase === 'C' ? 'selected' : ''}>Phase C</option>
+          </select>
+        </div>
+        <div class="w-24 px-2 flex-shrink-0 flex items-center justify-center gap-1 border-r border-slate-700 text-[11px]">
+          <span>PIC</span>
+          <select id="gantt-filter-pic" class="bg-slate-700 text-white text-[10px] rounded px-1 py-0.5 outline-none font-normal cursor-pointer hover:bg-slate-600 max-w-[50px]">
+            <option value="ALL">All</option>
+            <option value="Channel S" ${filterPic === 'Channel S' ? 'selected' : ''}>Channel S</option>
+            <option value="MEM" ${filterPic === 'MEM' ? 'selected' : ''}>MEM</option>
+            <option value="Agency" ${filterPic === 'Agency' ? 'selected' : ''}>Agency</option>
+            <option value="Procurement" ${filterPic === 'Procurement' ? 'selected' : ''}>Procurement</option>
+          </select>
+        </div>
+        <div class="w-24 px-2 flex-shrink-0 text-center border-r border-slate-700 text-[11px]">
+          Start Date
+        </div>
+        <div class="w-24 px-2 flex-shrink-0 text-center border-r border-slate-700 text-[11px]">
+          End Date
+        </div>
+        <div class="w-20 px-2 flex-shrink-0 flex items-center justify-center gap-1 border-r border-slate-700 text-[11px]">
+          <span>Status</span>
+          <select id="gantt-filter-status" class="bg-slate-700 text-white text-[10px] rounded px-1 py-0.5 outline-none font-normal cursor-pointer hover:bg-slate-600 max-w-[45px]">
+            <option value="ALL">All</option>
+            <option value="done" ${filterStatus === 'done' ? 'selected' : ''}>Done</option>
+            <option value="Inprogress" ${filterStatus === 'Inprogress' ? 'selected' : ''}>Inprog</option>
+            <option value="Not started" ${filterStatus === 'Not started' ? 'selected' : ''}>Pending</option>
+          </select>
+        </div>
+      `;
+      html += '<div class="flex-1 grid grid-cols-14 text-center divide-x divide-slate-700 text-[11px]" style="grid-template-columns: repeat(14, minmax(0, 1fr));">';
+      months.forEach(m => {
+        const tetClass = m.key === '2027-02' ? 'bg-red-700 text-white font-extrabold' : '';
+        html += `<div class="py-0.5 ${tetClass}">${m.name}</div>`;
+      });
+      html += '</div></div>';
+
+      // Tier 2: Weeks Header (Week 1, 2, 3, 4 under each month)
+      html += '<div class="flex border-b border-slate-300 bg-slate-100 text-slate-700 font-semibold py-1">';
+      html += '<div class="w-60 px-3 flex-shrink-0 text-[10px] text-slate-500 border-r border-slate-300 uppercase tracking-wider">Weekly Schedule</div>';
+      html += '<div class="w-24 px-2 flex-shrink-0 text-[10px] text-slate-500 text-center border-r border-slate-300 uppercase tracking-wider">PIC</div>';
+      html += '<div class="w-24 px-2 flex-shrink-0 text-[10px] text-slate-500 text-center border-r border-slate-300 uppercase tracking-wider">Start</div>';
+      html += '<div class="w-24 px-2 flex-shrink-0 text-[10px] text-slate-500 text-center border-r border-slate-300 uppercase tracking-wider">End</div>';
+      html += '<div class="w-20 px-2 flex-shrink-0 text-[10px] text-slate-500 text-center border-r border-slate-300 uppercase tracking-wider">Status</div>';
+      html += '<div class="flex-1 grid text-center divide-x divide-slate-200 text-[9px] font-mono" style="grid-template-columns: repeat(56, minmax(0, 1fr));">';
+      
+      months.forEach((m) => {
+        m.weeks.forEach((w, wIdx) => {
+          const isTet = m.key === '2027-02' && (wIdx === 0 || wIdx === 1);
+          const isOtherHoliday = m.holidayWeeks.includes(wIdx) && !isTet;
+          
+          let wClass = 'py-0.5 text-slate-600';
+          if (isTet) {
+            wClass = 'bg-red-500 text-white font-bold py-0.5';
+          } else if (isOtherHoliday) {
+            wClass = 'bg-amber-100 text-amber-800 font-bold py-0.5';
+          }
+          html += `<div class="${wClass}" title="${m.name} - ${w}">${w}</div>`;
+        });
+      });
+      html += '</div></div>';
+      html += '</div>'; // End sticky header container
+
+      // Rows
+      tasks.forEach(t => {
+        if (searchVal && !t.task.toLowerCase().includes(searchVal) && !t.wbs.toLowerCase().includes(searchVal)) return;
+        if (filterStatus !== 'ALL' && t.type === 'leaf' && t.status !== filterStatus) return;
+        if (filterPic !== 'ALL' && t.pic !== filterPic && !t.pic.includes(filterPic)) return;
+        if (filterPhase !== 'ALL') {
+          const isPhase = t.wbs.startsWith(filterPhase) || (filterPhase === 'A' && ['1', '2', '3'].some(p => t.wbs.startsWith(p)))
+                          || (filterPhase === 'B' && ['4', '5', '6', '7'].some(p => t.wbs === p))
+                          || (filterPhase === 'C' && ['8', '9', '10'].some(p => t.wbs === p));
+          if (!isPhase) return;
+        }
+
+        if (!t.startDate || !t.endDate) return;
+        const taskStart = new Date(t.startDate);
+        const taskEnd = new Date(t.endDate);
+        
+        const offsetDays = Math.max(0, Math.round((taskStart - projectStart) / (1000 * 60 * 60 * 24)));
+        const spanDays = Math.max(1, Math.round((taskEnd - taskStart) / (1000 * 60 * 60 * 24)) + 1);
+
+        const leftPct = (offsetDays / totalDays) * 100;
+        const widthPct = Math.min(100 - leftPct, (spanDays / totalDays) * 100);
+
+        const isPhase = t.type === 'phase';
+        const isSection = t.type === 'section';
+        const isDone = t.status === 'done';
+
+        let rowClass = 'flex items-center text-xs border-b border-slate-100 transition-colors';
+        let leftColClass = 'w-60 px-3 flex-shrink-0 truncate text-[11px] border-r border-slate-100';
+        let picColClass = 'w-24 px-2 flex-shrink-0 text-center text-[11px] border-r border-slate-100';
+        let startColClass = 'w-24 px-2 flex-shrink-0 text-center text-[10px] text-slate-600 border-r border-slate-100';
+        let endColClass = 'w-24 px-2 flex-shrink-0 text-center text-[10px] text-slate-600 border-r border-slate-100';
+        let statusColClass = 'w-20 px-2 flex-shrink-0 text-center text-[11px] border-r border-slate-100';
+
+        let picContent = `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">${t.pic || '—'}</span>`;
+        let statusContent = `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-medium ${t.status === 'done' ? 'bg-emerald-100 text-emerald-800' : (t.status === 'Inprogress' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600')}">${t.status}</span>`;
+        let barClass = 'bg-[#60A5FA] h-3.5 rounded';
+
+
+
+        if (isPhase) {
+          rowClass += ' bg-[#4B86B4] text-white';
+          leftColClass = 'w-60 px-3 flex-shrink-0 truncate text-[11px] font-bold uppercase tracking-wider text-white border-r border-blue-400/30';
+          picColClass = 'w-24 px-2 flex-shrink-0 text-center text-[11px] font-bold uppercase text-blue-100 border-r border-blue-400/30';
+          startColClass = 'w-24 px-2 flex-shrink-0 text-center text-[10px] font-medium text-blue-100 border-r border-blue-400/30';
+          endColClass = 'w-24 px-2 flex-shrink-0 text-center text-[10px] font-medium text-blue-100 border-r border-blue-400/30';
+          statusColClass = 'w-20 px-2 flex-shrink-0 text-center text-[11px] font-bold uppercase text-white border-r border-blue-400/30';
+          picContent = `<span>${t.pic || '—'}</span>`;
+          statusContent = `<span>${t.status}</span>`;
+          barClass = 'bg-[#002D62] h-4 rounded font-bold text-white shadow-sm';
+        } else if (isSection) {
+          rowClass += ' bg-slate-100 text-slate-800 border-t border-slate-200';
+          leftColClass = 'w-60 px-3 flex-shrink-0 truncate text-[11px] font-semibold text-slate-900 border-r border-slate-200';
+          picColClass = 'w-24 px-2 flex-shrink-0 text-center text-[11px] font-semibold text-slate-700 border-r border-slate-200';
+          startColClass = 'w-24 px-2 flex-shrink-0 text-center text-[10px] font-medium text-slate-700 border-r border-slate-200';
+          endColClass = 'w-24 px-2 flex-shrink-0 text-center text-[10px] font-medium text-slate-700 border-r border-slate-200';
+          statusColClass = 'w-20 px-2 flex-shrink-0 text-center text-[11px] font-semibold text-slate-700 border-r border-slate-200';
+          picContent = `<span class="text-slate-600">${t.pic || '—'}</span>`;
+          statusContent = `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium ${t.status === 'done' ? 'bg-emerald-100 text-emerald-800' : (t.status === 'Inprogress' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-600')}">${t.status}</span>`;
+          barClass = 'bg-[#2475AD] h-3.5 rounded shadow-sm';
+        } else {
+          if (isDone) {
+            rowClass += ' bg-emerald-50/20 text-slate-400';
+            leftColClass += ' line-through text-slate-400';
+            startColClass += ' line-through text-slate-400';
+            endColClass += ' line-through text-slate-400';
+            picContent = `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-400 line-through">${t.pic || '—'}</span>`;
+            statusContent = `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">done</span>`;
+            barClass = 'bg-emerald-500 h-3.5 rounded shadow-sm';
+          } else {
+            rowClass += ' bg-white hover:bg-slate-50';
+            leftColClass += ' text-slate-700';
+            barClass = t.status === 'Inprogress' ? 'bg-[#004B93] h-3.5 rounded shadow-sm' : 'bg-blue-300 h-3.5 rounded shadow-sm';
+          }
+        }
+
+        html += `
+          <div class="${rowClass}">
+            <div class="${leftColClass}" title="${t.wbs} ${t.task}">
+              ${isDone ? '✓ ' : ''}${t.wbs} ${t.task}
+            </div>
+            <div class="${picColClass}">
+              ${picContent}
+            </div>
+            <div class="${startColClass}">
+              ${formatDate(t.startDate)}
+            </div>
+            <div class="${endColClass}">
+              ${formatDate(t.endDate)}
+            </div>
+            <div class="${statusColClass}">
+              ${statusContent}
+            </div>
+            <div class="flex-1 relative h-7 bg-slate-50/40 overflow-hidden">
+              <!-- Tet Holiday vertical guide line -->
+              <div class="absolute top-0 bottom-0 bg-red-100/50 border-x border-red-400/40 pointer-events-none" style="left: 22.3%; width: 1.6%;" title="🧧 Tết Holiday Break (04/02 – 10/02/2027)"></div>
+              
+              <!-- Clean Gantt Task Bar -->
+              <div class="absolute top-1.5 ${barClass} transition-all" style="left: ${leftPct}%; width: ${widthPct}%;" title="${t.task}: ${formatDate(t.startDate)} - ${formatDate(t.endDate)} (${getWorkingDays(t.startDate, t.endDate)} working days)">
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      wrapper.innerHTML = html;
+
+      // Attach listeners to Gantt header filters
+      document.getElementById('gantt-filter-phase')?.addEventListener('change', (e) => {
+        syncFilterPhase(e.target.value);
+      });
+      document.getElementById('gantt-filter-pic')?.addEventListener('change', (e) => {
+        syncFilterPic(e.target.value);
+      });
+      document.getElementById('gantt-filter-status')?.addEventListener('change', (e) => {
+        syncFilterStatus(e.target.value);
+      });
+    }
+
+    window.moveTask = function(index, direction) {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= tasks.length) return;
+      const temp = tasks[index];
+      tasks[index] = tasks[targetIndex];
+      tasks[targetIndex] = temp;
+      saveTasks();
+      recalculateAggregates();
+      renderTable();
+      renderGantt();
+    };
+
+    window.openDeleteModal = function(id) {
+      deleteTargetId = id;
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        document.getElementById('delete-task-name').textContent = `${task.wbs} - ${task.task}`;
+      }
+      document.getElementById('modal-delete').classList.remove('hidden');
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadTasks();
+      renderTable();
+      renderGantt();
+      updateUndoRedoButtons();
+
+      // Keyboard shortcuts: Ctrl+Z (Undo) and Ctrl+Y / Ctrl+Shift+Z (Redo)
+      window.addEventListener('keydown', (e) => {
+        const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+        const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+        
+        if (cmdOrCtrl && !e.target.matches('input, select, textarea')) {
+          if (e.key === 'z' && !e.shiftKey) {
+            e.preventDefault();
+            undo();
+          } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+            e.preventDefault();
+            redo();
+          }
+        }
+      });
+
+      // View Tab Switching
+      document.getElementById('tab-table')?.addEventListener('click', () => {
+        document.getElementById('view-table-container').classList.remove('hidden');
+        document.getElementById('view-gantt-container').classList.add('hidden');
+        document.getElementById('tab-table').className = 'px-4 py-1.5 rounded-md text-xs font-semibold bg-white text-[#004B93] shadow-sm transition-all flex items-center gap-1.5';
+        document.getElementById('tab-gantt').className = 'px-4 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5';
+      });
+
+      document.getElementById('tab-gantt')?.addEventListener('click', () => {
+        document.getElementById('view-table-container').classList.add('hidden');
+        document.getElementById('view-gantt-container').classList.remove('hidden');
+        document.getElementById('tab-gantt').className = 'px-4 py-1.5 rounded-md text-xs font-semibold bg-white text-[#004B93] shadow-sm transition-all flex items-center gap-1.5';
+        document.getElementById('tab-table').className = 'px-4 py-1.5 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5';
+        renderGantt();
+      });
+
+      // Select All Checkbox
+      document.getElementById('select-all-checkbox')?.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        selectedTaskIds.clear();
+        if (isChecked) {
+          tasks.forEach(t => {
+            if (t.type === 'leaf') selectedTaskIds.add(t.id);
+          });
+        }
+        renderTable();
+        updateFloatingBar();
+      });
+
+      // Floating Group Bar Buttons
+      document.getElementById('btn-group-move-up')?.addEventListener('click', () => moveGroup(-1));
+      document.getElementById('btn-group-move-down')?.addEventListener('click', () => moveGroup(1));
+      document.getElementById('btn-group-clear')?.addEventListener('click', () => {
+        selectedTaskIds.clear();
+        renderTable();
+        updateFloatingBar();
+      });
+
+      // Column Header & Gantt Filter Synchronization
+      function syncFilterPhase(val) {
+        filterPhase = val;
+        if (document.getElementById('th-filter-phase')) document.getElementById('th-filter-phase').value = val;
+        if (document.getElementById('gantt-filter-phase')) document.getElementById('gantt-filter-phase').value = val;
+        renderTable();
+        renderGantt();
+      }
+
+      function syncFilterPic(val) {
+        filterPic = val;
+        if (document.getElementById('th-filter-pic')) document.getElementById('th-filter-pic').value = val;
+        if (document.getElementById('gantt-filter-pic')) document.getElementById('gantt-filter-pic').value = val;
+        renderTable();
+        renderGantt();
+      }
+
+      function syncFilterStatus(val) {
+        filterStatus = val;
+        if (document.getElementById('th-filter-status')) document.getElementById('th-filter-status').value = val;
+        if (document.getElementById('gantt-filter-status')) document.getElementById('gantt-filter-status').value = val;
+        renderTable();
+        renderGantt();
+      }
+
+      document.getElementById('th-filter-phase')?.addEventListener('change', (e) => syncFilterPhase(e.target.value));
+      document.getElementById('th-filter-pic')?.addEventListener('change', (e) => syncFilterPic(e.target.value));
+      document.getElementById('th-filter-status')?.addEventListener('change', (e) => syncFilterStatus(e.target.value));
+
+      // Search Input
+      document.getElementById('search-input')?.addEventListener('input', (e) => {
+        searchVal = e.target.value.toLowerCase();
+        renderTable();
+        renderGantt();
+      });
+
+      // Add Task Button
+      document.getElementById('btn-add-task')?.addEventListener('click', () => {
+        document.getElementById('add-wbs').value = '';
+        document.getElementById('add-task').value = '';
+        document.getElementById('add-pic').value = 'Agency';
+        document.getElementById('add-start').value = '2027-05-10';
+        document.getElementById('add-end').value = '2027-05-20';
+        document.getElementById('add-status').value = 'Not started';
+        document.getElementById('add-actual').value = 0;
+        document.getElementById('modal-add').classList.remove('hidden');
+      });
+
+      // Add Form Submit (Supports leaf, phase, and section types)
+      document.getElementById('form-add')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const newId = 'task_' + Date.now();
+        const rowType = document.querySelector('input[name="add-row-type"]:checked')?.value || 'leaf';
+        const wbs = document.getElementById('add-wbs').value;
+        const task = document.getElementById('add-task').value;
+        const pic = document.getElementById('add-pic').value;
+        const startDate = document.getElementById('add-start').value;
+        const endDate = document.getElementById('add-end').value;
+        const status = document.getElementById('add-status').value;
+        const actual = Number(document.getElementById('add-actual').value) || 0;
+
+        tasks.push({
+          id: newId,
+          type: rowType,
+          wbs: wbs || (rowType === 'phase' ? 'NEW' : (rowType === 'section' ? '§' : '•')),
+          task: task,
+          pic: pic,
+          startDate: startDate,
+          endDate: endDate,
+          status: status,
+          actual: actual
+        });
+
+        saveTasks();
+        recalculateAggregates();
+        renderTable();
+        renderGantt();
+        document.getElementById('modal-add').classList.add('hidden');
+      });
+
+      // Modal Closures
+      document.getElementById('modal-add-close')?.addEventListener('click', () => {
+        document.getElementById('modal-add').classList.add('hidden');
+      });
+      document.getElementById('modal-add-cancel')?.addEventListener('click', () => {
+        document.getElementById('modal-add').classList.add('hidden');
+      });
+
+      // Delete Confirm
+      document.getElementById('modal-delete-cancel')?.addEventListener('click', () => {
+        document.getElementById('modal-delete').classList.add('hidden');
+        deleteTargetId = null;
+      });
+      document.getElementById('modal-delete-confirm')?.addEventListener('click', () => {
+        if (deleteTargetId) {
+          tasks = tasks.filter(t => t.id !== deleteTargetId);
+          selectedTaskIds.delete(deleteTargetId);
+          deleteTargetId = null;
+          saveTasks();
+          recalculateAggregates();
+          renderTable();
+          renderGantt();
+          updateFloatingBar();
+        }
+        document.getElementById('modal-delete').classList.add('hidden');
+      });
+
+      // Reset Modal Triggers
+      document.getElementById('btn-open-reset-modal')?.addEventListener('click', () => {
+        document.getElementById('modal-reset').classList.remove('hidden');
+      });
+      document.getElementById('modal-reset-cancel')?.addEventListener('click', () => {
+        document.getElementById('modal-reset').classList.add('hidden');
+      });
+      document.getElementById('modal-reset-confirm')?.addEventListener('click', () => {
+        tasks = JSON.parse(JSON.stringify(DEFAULT_DATA));
+        selectedTaskIds.clear();
+        saveTasks();
+        recalculateAggregates();
+        renderTable();
+        renderGantt();
+        updateFloatingBar();
+        document.getElementById('modal-reset').classList.add('hidden');
+      });
+
+      // Export CSV
+      document.getElementById('btn-export-csv')?.addEventListener('click', () => {
+        const rows = [
+          ['WBS', 'Task', 'PIC', 'Start Date', 'End Date', 'Work Days (excl Weekend & Tet)', 'Status', 'Actual %']
+        ];
+        tasks.forEach(t => {
+          const dur = getWorkingDays(t.startDate, t.endDate);
+          rows.push([t.wbs, t.task, t.pic || '', t.startDate, t.endDate, dur, t.status, (t.actual || 0) + '%']);
+        });
+        const csvContent = rows.map(r => r.map(field => `"${String(field).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `SPVB_VMS_Master_Plan_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    });
+  </script>
+</body>
+</html>
